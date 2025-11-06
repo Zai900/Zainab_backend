@@ -1,5 +1,3 @@
-// server.js — Express + MongoDB backend for After-School Activity Club
-
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
@@ -8,50 +6,44 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 
-// Routers
 const lessonsRouter = require('./routes/lessons');
-const ordersRouter = require('./routes/orders');
+const ordersRouter  = require('./routes/orders');
 
 const app = express();
 
-// ======== CONNECT TO MONGODB ========
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('Connected to MongoDB'))
-  .catch(err => console.error('MongoDB connection error:', err));
+// --- DB ---
+mongoose.connect(process.env.MONGODB_URI, { })
+  .then(() => console.log('✅ MongoDB connected'))
+  .catch(err => console.error('Mongo error:', err));
 
-// ======== MIDDLEWARE ========
-
-// enable JSON + CORS
-app.use(express.json());
+// --- Core middleware ---
 app.use(cors());
+app.use(express.json());
 
-// A) Logger middleware (prints every request)
+// A) Logger middleware (explainable in demo)
 app.use(morgan(':method :url :status :res[content-length] - :response-time ms'));
 
-// B) Static file middleware for images
-app.get('/images/:filename', (req, res) => {
-  const filePath = path.join(__dirname, 'static', req.params.filename);
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ error: 'Image not found', file: req.params.filename });
+// B) Static images with error if missing
+app.get('/images/:name', (req, res) => {
+  const file = path.join(__dirname, 'static', req.params.name);
+  if (!fs.existsSync(file)) {
+    return res.status(404).json({ error: 'Image not found', file: req.params.name });
   }
-  res.sendFile(filePath);
+  res.sendFile(file);
 });
 
-// Optional: serve the static folder for direct URLs like /static/football.jpg
+// (Optional) Serve the whole static folder if you want direct URLs like /static/basketball.jpg
 app.use('/static', express.static(path.join(__dirname, 'static')));
 
-// ======== ROUTES ========
+// --- REST API ---
 app.use('/lessons', lessonsRouter);
 app.use('/orders', ordersRouter);
 
-// ======== ERROR HANDLER ========
+// --- Error handler (nice to have) ---
 app.use((err, req, res, next) => {
-  console.error(' Server Error:', err);
-  res.status(500).json({ error: 'Internal server error' });
+  console.error('Server error:', err);
+  res.status(500).json({ error: 'Server error' });
 });
 
-// ======== START SERVER ========
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
+const port = process.env.PORT || 3000;
+app.listen(port, () => console.log(`🚀 Server on http://localhost:${port}`));
