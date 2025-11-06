@@ -1,0 +1,10 @@
+import express from "express";
+import Lesson from "../models/Lesson.js";
+const router = express.Router();
+
+router.get("/", async (_req, res) => {
+  const lessons = await Lesson.find();
+  res.json(lessons);
+});
+
+export default router;
