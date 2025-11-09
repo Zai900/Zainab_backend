@@ -37,7 +37,7 @@ app.get('/images/:filename', (req, res) => {
   res.sendFile(filePath);
 });
 
-// Optional: serve the static folder for direct URLs like /static/football.jpg
+// Optional: serve the static folder for direct URLs like /static/Football-Training.jpg
 app.use('/static', express.static(path.join(__dirname, 'static')));
 
 // ======== ROUTES ========
