@@ -1,49 +1,50 @@
-require('dotenv').config();
-const express = require('express');
-const mongoose = require('mongoose');
-const morgan = require('morgan');
-const cors = require('cors');
-const path = require('path');
-const fs = require('fs');
+// server.js — Express + MongoDB backend for After-School Activity Club (ES modules)
 
-const lessonsRouter = require('./routes/lessons');
-const ordersRouter  = require('./routes/orders');
+import dotenv from "dotenv";
+import express from "express";
+import mongoose from "mongoose";
+import morgan from "morgan";
+import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
+
+import lessonsRouter from "./routes/lessons.js";
+import ordersRouter from "./routes/orders.js";
+
+dotenv.config();
 
 const app = express();
 
-// --- DB ---
-mongoose.connect(process.env.MONGODB_URI, { })
-  .then(() => console.log('✅ MongoDB connected'))
-  .catch(err => console.error('Mongo error:', err));
+// __dirname for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-// --- Core middleware ---
-app.use(cors());
-app.use(express.json());
+// ===== Middleware =====
+app.use(cors());                 // enable CORS
+app.use(express.json());         // parse JSON body
+app.use(morgan("dev"));          // request logging
 
-// A) Logger middleware (explainable in demo)
-app.use(morgan(':method :url :status :res[content-length] - :response-time ms'));
+// ===== Static images (optional) =====
+app.use("/static", express.static(path.join(__dirname, "static")));
 
-// B) Static images with error if missing
-app.get('/images/:name', (req, res) => {
-  const file = path.join(__dirname, 'static', req.params.name);
-  if (!fs.existsSync(file)) {
-    return res.status(404).json({ error: 'Image not found', file: req.params.name });
-  }
-  res.sendFile(file);
+// ===== Routers =====
+app.use("/lessons", lessonsRouter);
+app.use("/orders", ordersRouter);
+
+// ===== Error handler =====
+app.use((err, _req, res, _next) => {
+  console.error("Server Error:", err);
+  res.status(500).json({ error: "Internal server error" });
 });
 
-// (Optional) Serve the whole static folder if you want direct URLs like /static/basketball.jpg
-app.use('/static', express.static(path.join(__dirname, 'static')));
+// ===== MongoDB =====
+mongoose
+  .connect(process.env.MONGODB_URI)
+  .then(() => console.log("MongoDB connected"))
+  .catch((err) => console.error("MongoDB connection error:", err));
 
-// --- REST API ---
-app.use('/lessons', lessonsRouter);
-app.use('/orders', ordersRouter);
-
-// --- Error handler (nice to have) ---
-app.use((err, req, res, next) => {
-  console.error('Server error:', err);
-  res.status(500).json({ error: 'Server error' });
+// ===== Start server (use 4000 to avoid clashes) =====
+const PORT = process.env.PORT || 4000;
+app.listen(PORT, () => {
+  console.log(`API running on http://localhost:${PORT}`);
 });
-
-const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`🚀 Server on http://localhost:${port}`));
