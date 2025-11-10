@@ -1,12 +1,13 @@
-const mongoose = require('mongoose');
+import mongoose from "mongoose";
 
-const OrderSchema = new mongoose.Schema({
-  name:   { type: String, required: true },
-  phone:  { type: String, required: true },
-  // Array of lesson IDs (1+ lessons per order)
-  lessonIDs: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Lesson', required: true }],
-  // total number of spaces booked across all lessons
-  numberOfSpace: { type: Number, required: true, min: 1 }
-}, { timestamps: true });
+const orderSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },             // Customer name
+    phoneNumber: { type: String, required: true },      // Customer phone number
+    lessonIDs: [{ type: mongoose.Schema.Types.ObjectId, ref: "Lesson" }], // Related lessons
+    spaces: { type: Number, required: true, min: 1 }    // Number of spaces booked
+  },
+  { timestamps: true }
+);
 
-module.exports = mongoose.model('Order', OrderSchema);
+export default mongoose.model("Order", orderSchema);
