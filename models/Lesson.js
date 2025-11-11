@@ -1,14 +1,13 @@
-import mongoose from "mongoose";
+// routes/lessons.js
+import express from "express";
+import Lesson from "../models/Lesson.js";
 
-const lessonSchema = new mongoose.Schema(
-  {
-    topic: { type: String, required: true },     // e.g. "Football Training"
-    price: { type: Number, required: true, min: 0 },
-    location: { type: String, required: true },
-    spaces: { type: Number, required: true, min: 0 },
-    image: { type: String }                      // optional: "football.jpg"
-  },
-  { timestamps: true }
-);
+const router = express.Router();
 
-export default mongoose.model("Lesson", lessonSchema);
+// GET /lessons -> all lessons (sorted by topic)
+router.get("/", async (_req, res) => {
+  const lessons = await Lesson.find().sort({ topic: 1 });
+  res.json(lessons);
+});
+
+export default router; 

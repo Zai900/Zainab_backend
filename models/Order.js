@@ -1,13 +1,17 @@
-import mongoose from "mongoose";
+import express from "express";
+import Order from "../models/Order.js";
 
-const orderSchema = new mongoose.Schema(
-  {
-    name: { type: String, required: true },             // Customer name
-    phoneNumber: { type: String, required: true },      // Customer phone number
-    lessonIDs: [{ type: mongoose.Schema.Types.ObjectId, ref: "Lesson" }], // Related lessons
-    spaces: { type: Number, required: true, min: 1 }    // Number of spaces booked
-  },
-  { timestamps: true }
-);
+const router = express.Router();
 
-export default mongoose.model("Order", orderSchema);
+// POST /orders  -> create order
+router.post("/", async (req, res) => {
+  try {
+    const order = new Order(req.body);
+    await order.save();
+    res.status(201).json(order);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+export default router;
