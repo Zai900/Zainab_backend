@@ -37,16 +37,11 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: "Internal server error" });
 });
 
-<<<<<<< HEAD
 // ===== MongoDB =====
 mongoose
   .connect(process.env.MONGODB_URI)
   .then(() => console.log("MongoDB connected"))
   .catch((err) => console.error("MongoDB connection error:", err));
-=======
-// Optional: serve the static folder for direct URLs like /static/Football-Training.jpg
-app.use('/static', express.static(path.join(__dirname, 'static')));
->>>>>>> b7266cfe0490c80647a8ec1362c82929dc48ff7a
 
 // ===== Start server (use 4000 to avoid clashes) =====
 const PORT = process.env.PORT || 4000;
