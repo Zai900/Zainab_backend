@@ -1,13 +1,13 @@
-// routes/lessons.js
-import express from "express";
-import Lesson from "../models/Lesson.js";
+import mongoose from "mongoose";
 
-const router = express.Router();
-
-// GET /lessons -> all lessons (sorted by topic)
-router.get("/", async (_req, res) => {
-  const lessons = await Lesson.find().sort({ topic: 1 });
-  res.json(lessons);
+const lessonSchema = new mongoose.Schema({
+  subject: { type: String, required: true },
+  location: { type: String, required: true },
+  price: { type: Number, required: true },
+  spaces: { type: Number, required: true },
+  image: { type: String },
 });
 
-export default router; 
+const Lesson = mongoose.model("Lesson", lessonSchema);
+
+export default Lesson;
