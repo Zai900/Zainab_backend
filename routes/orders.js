@@ -21,7 +21,11 @@ router.post("/", async (req, res, next) => {
     const savedOrder = await order.save();
     res.status(201).json(savedOrder);
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    if (err.name === "ValidationError") {
+      // your model validation errors (e.g. empty cart) will come here
+      return res.status(400).json({ error: err.message });
+    }
+    next(err);
   }
 });
 

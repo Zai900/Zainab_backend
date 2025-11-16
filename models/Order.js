@@ -1,17 +1,37 @@
-import express from "express";
-import Order from "../models/Order.js";
+// models/Order.js
+import mongoose from "mongoose";
 
-const router = express.Router();
-
-// POST /orders  -> create order
-router.post("/", async (req, res) => {
-  try {
-    const order = new Order(req.body);
-    await order.save();
-    res.status(201).json(order);
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
+const cartItemSchema = new mongoose.Schema({
+  lessonId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Lesson",
+    required: true,
+  },
+  quantity: {
+    type: Number,
+    required: true,
+    min: 1,
+  },
 });
 
-export default router;
+const orderSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  phone: { type: String, required: true },
+  city: { type: String, required: true },
+  cart: {
+    type: [cartItemSchema],
+    required: true,
+    // ✅ correct validator: a real function, not undefined / not .apply
+    validate: {
+      validator: function (arr) {
+        return Array.isArray(arr) && arr.length > 0;
+      },
+      message: "Cart cannot be empty",
+    },
+  },
+  createdAt: { type: Date, default: Date.now },
+});
+
+const Order = mongoose.model("Order", orderSchema);
+
+export default Order;
