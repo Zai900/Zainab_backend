@@ -1,10 +1,9 @@
-// routes/orders.js
 import express from "express";
 import Order from "../models/Order.js";
 
 const router = express.Router();
 
-// GET /orders  -> list all orders
+// GET /orders
 router.get("/", async (req, res, next) => {
   try {
     const orders = await Order.find().populate("cart.lessonId");
@@ -14,19 +13,16 @@ router.get("/", async (req, res, next) => {
   }
 });
 
-// POST /orders -> create new order
-router.post("/", async (req, res, next) => {
+// POST /orders
+router.post("/", async (req, res) => {
   try {
     const order = new Order(req.body);
     const savedOrder = await order.save();
     res.status(201).json(savedOrder);
   } catch (err) {
-    if (err.name === "ValidationError") {
-      // your model validation errors (e.g. empty cart) will come here
-      return res.status(400).json({ error: err.message });
-    }
-    next(err);
+    res.status(400).json({ error: err.message });
   }
 });
 
 export default router;
+        
