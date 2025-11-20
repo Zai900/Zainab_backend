@@ -1,10 +1,10 @@
-// server.js - Express server using native MongoDB driver (NO mongoose)
+// server.js — Express server using native MongoDB driver
+
 import dotenv from "dotenv";
 import express from "express";
 import cors from "cors";
-import path from "path";
-import fs from "fs";
 import morgan from "morgan";
+import path from "path";
 import { fileURLToPath } from "url";
 
 import lessonsRouter from "./routes/lessons.js";
@@ -15,30 +15,19 @@ dotenv.config();
 
 const app = express();
 
-// path helpers
+// __dirname for ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ===== Core middleware =====
+// ===== Middleware =====
 app.use(cors());
 app.use(express.json());
+app.use(morgan("dev"));
 
-// Coursework requires logging for all requests
-app.use(morgan("dev"));  // or you can replace with your own logger
+// Static images (if you want to serve them from /static)
+app.use("/static", express.static(path.join(__dirname, "static")));
 
-// ===== Static images middleware =====
-app.get("/images/:fileName", (req, res) => {
-  const imagesDir = path.join(__dirname, "static");  // adjust if images are elsewhere
-  const filePath = path.join(imagesDir, req.params.fileName);
-
-  if (fs.existsSync(filePath)) {
-    res.sendFile(filePath);
-  } else {
-    res.status(404).json({ error: "Image not found" });
-  }
-});
-
-// ===== Routers =====
+// ===== Routes =====
 app.use("/lessons", lessonsRouter);
 app.use("/orders", ordersRouter);
 
@@ -48,7 +37,7 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: "Internal server error" });
 });
 
-// ===== Start server only AFTER connecting to MongoDB =====
+// ===== Start Server after DB connection =====
 const PORT = process.env.PORT || 4000;
 
 connectToDb()
@@ -58,6 +47,6 @@ connectToDb()
     });
   })
   .catch((err) => {
-    console.error("❌ Failed to connect to MongoDB:", err);
+    console.error("❌ Failed to start server:", err);
     process.exit(1);
   });

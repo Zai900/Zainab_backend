@@ -1,31 +1,31 @@
-// routes/lessons.js — using native MongoDB driver
+// routes/lessons.js — lessons routes using native MongoDB
+
 import express from "express";
-import { connectToDb, ObjectId } from "../db.js";
+import { ObjectId } from "mongodb";
+import { getDb } from "../db.js";
 
 const router = express.Router();
 
-// =============================
 // GET /lessons -> list all lessons
-// =============================
-router.get("/", async (req, res, next) => {
+router.get("/", async (_req, res, next) => {
   try {
-    const db = await connectToDb();
-    const lessons = await db.collection("lessons").find({}).toArray();
+    const lessons = await getDb().collection("lessons").find().toArray();
     res.json(lessons);
   } catch (err) {
     next(err);
   }
 });
 
-// =============================
 // GET /lessons/:id -> single lesson
-// =============================
 router.get("/:id", async (req, res, next) => {
   try {
-    const db = await connectToDb();
     const id = req.params.id;
 
-    const lesson = await db
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid lesson ID" });
+    }
+
+    const lesson = await getDb()
       .collection("lessons")
       .findOne({ _id: new ObjectId(id) });
 
@@ -39,26 +39,30 @@ router.get("/:id", async (req, res, next) => {
   }
 });
 
-// =============================
-// PUT /lessons/:id -> update lesson (spaces, price, etc.)
-// =============================
+// PUT /lessons/:id -> update lesson (e.g. spaces after order)
 router.put("/:id", async (req, res, next) => {
   try {
-    const db = await connectToDb();
     const id = req.params.id;
 
-    const filter = { _id: new ObjectId(id) };
-    const updateDoc = { $set: req.body }; // can update ANY fields
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid lesson ID" });
+    }
 
-    const result = await db.collection("lessons").updateOne(filter, updateDoc);
+    const updateDoc = { $set: req.body };
 
-    if (result.matchedCount === 0) {
+    const result = await getDb()
+      .collection("lessons")
+      .findOneAndUpdate(
+        { _id: new ObjectId(id) },
+        updateDoc,
+        { returnDocument: "after" }
+      );
+
+    if (!result.value) {
       return res.status(404).json({ error: "Lesson not found" });
     }
 
-    // Return updated lesson
-    const updatedLesson = await db.collection("lessons").findOne(filter);
-    res.json(updatedLesson);
+    res.json(result.value);
   } catch (err) {
     next(err);
   }

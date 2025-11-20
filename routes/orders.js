@@ -1,34 +1,62 @@
-// routes/orders.js — native MongoDB driver 
+// routes/orders.js — orders routes using native MongoDB
+
 import express from "express";
-import { connectToDb, ObjectId } from "../db.js";
+import { ObjectId } from "mongodb";
+import { getDb } from "../db.js";
 
 const router = express.Router();
 
-// GET /orders
-router.get("/", async (req, res, next) => {
+// GET /orders -> list all orders
+router.get("/", async (_req, res, next) => {
   try {
-    const db = await connectToDb();
-    const orders = await db.collection("orders").find({}).toArray();
+    const orders = await getDb().collection("orders").find().toArray();
     res.json(orders);
   } catch (err) {
     next(err);
   }
 });
 
-// POST /orders
-router.post("/", async (req, res) => {
+// POST /orders -> create new order
+router.post("/", async (req, res, next) => {
   try {
-    const db = await connectToDb();
-    const orderData = req.body;
+    const { name, phone, city, cart } = req.body;
 
-    const result = await db.collection("orders").insertOne(orderData);
+    if (!name || !phone || !city || !Array.isArray(cart) || cart.length === 0) {
+      return res.status(400).json({ error: "Invalid order data" });
+    }
 
+    // convert lessonId strings to ObjectId
+    const normalizedCart = cart.map((item) => {
+      if (!item.lessonId || !ObjectId.isValid(item.lessonId)) {
+        throw new Error("Invalid lessonId in cart");
+      }
+      return {
+        lessonId: new ObjectId(item.lessonId),
+        quantity: Number(item.quantity) || 1,
+      };
+    });
+
+    const orderDoc = {
+      name,
+      phone,
+      city,
+      cart: normalizedCart,
+      createdAt: new Date(),
+    };
+
+    const collection = getDb().collection("orders");
+    const result = await collection.insertOne(orderDoc);
+
+    // send back saved order
     res.status(201).json({
       _id: result.insertedId,
-      ...orderData,
+      ...orderDoc,
     });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    if (err.message && err.message.includes("lessonId")) {
+      return res.status(400).json({ error: err.message });
+    }
+    next(err);
   }
 });
 
