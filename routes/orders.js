@@ -1,138 +1,63 @@
-// routes/orders.js
+import express from "express";
+import { getOrdersCollection } from "../db.js";
+import { ObjectId } from "../db.js";
 
-import { Router } from "express";
-import {
-  getOrdersCollection,
-  getLessonsCollection,
-  ObjectId,
-} from "../db.js";
+const router = express.Router();
 
-const router = Router();
-
-// Simple validation helper
-function isNonEmptyString(value) {
-  return typeof value === "string" && value.trim().length > 0;
-}
-
-// GET /orders — list all orders
-router.get("/", async (_req, res, next) => {
+// ========== GET /orders ==========
+router.get("/", async (req, res) => {
   try {
-    const orders = await getOrdersCollection().find({}).toArray();
+    const ordersCol = getOrdersCollection();
+    const orders = await ordersCol.find().toArray();
     res.json(orders);
   } catch (err) {
-    next(err);
+    console.error("Error fetching orders:", err);
+    res.status(500).json({ error: "Failed to fetch orders" });
   }
 });
 
-// POST /orders — create new order
-// Expected JSON:
-// {
-//   "name": "Zainab",
-//   "phone": "123456789",
-//   "lessonID": "673d2bd1c1874bf65e64f403",
-//   "numberOfSpaces": 1
-// }
-router.post("/", async (req, res, next) => {
+// ========== POST /orders ==========
+router.post("/", async (req, res) => {
+  console.log("POST /orders body:", req.body);
+
+  const { name, phone, city, cart } = req.body;
+
+  // basic validation – this is what controls 400 errors
+  if (
+    !name ||
+    !phone ||
+    !city ||
+    !Array.isArray(cart) ||
+    cart.length === 0
+  ) {
+    return res.status(400).json({ error: "Invalid order data" });
+  }
+
+  // build the document exactly as we want to store it
+  const orderDoc = {
+    name: String(name).trim(),
+    phone: String(phone).trim(),
+    city: String(city).trim(),
+    cart: cart.map((item) => ({
+      lessonId: new ObjectId(item.lessonId),
+      quantity: Number(item.quantity) || 1,
+    })),
+    createdAt: new Date(),
+  };
+
   try {
-    const { name, phone, lessonID, numberOfSpaces } = req.body;
-
-    // Basic validation
-    if (
-      !isNonEmptyString(name) ||
-      !isNonEmptyString(phone) ||
-      !isNonEmptyString(lessonID) ||
-      typeof numberOfSpaces !== "number" ||
-      numberOfSpaces <= 0
-    ) {
-      return res.status(400).json({ error: "Invalid order data" });
-    }
-
-    if (!ObjectId.isValid(lessonID)) {
-      return res.status(400).json({ error: "Invalid lessonID" });
-    }
-
-    const lessonsCol = getLessonsCollection();
     const ordersCol = getOrdersCollection();
 
-    const lessonObjectId = new ObjectId(lessonID);
+    const result = await ordersCol.insertOne(orderDoc);
 
-    // Check lesson exists
-    const lesson = await lessonsCol.findOne({ _id: lessonObjectId });
-    if (!lesson) {
-      return res.status(400).json({ error: "Lesson not found" });
-    }
-
-    // Check available spaces
-    if (lesson.spaces < numberOfSpaces) {
-      return res.status(400).json({ error: "Not enough spaces available" });
-    }
-
-    // Create order document
-    const orderDoc = {
-      name: name.trim(),
-      phone: phone.trim(),
-      lessonID: lessonObjectId,
-      numberOfSpaces,
-      createdAt: new Date(),
-    };
-
-    const insertResult = await ordersCol.insertOne(orderDoc);
-
-    // Decrement spaces on lesson
-    await lessonsCol.updateOne(
-      { _id: lessonObjectId },
-      { $inc: { spaces: -numberOfSpaces } }
-    );
-
+    // send back created order (201 = Created)
     res.status(201).json({
-      message: "Order created",
-      orderId: insertResult.insertedId,
+      _id: result.insertedId,
+      ...orderDoc,
     });
   } catch (err) {
-    next(err);
-  }
-});
-
-// PUT /orders/:id — simple update (name, phone, numberOfSpaces only)
-router.put("/:id", async (req, res, next) => {
-  try {
-    const orderId = req.params.id;
-
-    if (!ObjectId.isValid(orderId)) {
-      return res.status(400).json({ error: "Invalid order id" });
-    }
-
-    const { name, phone, numberOfSpaces } = req.body;
-
-    const updateFields = {};
-    if (isNonEmptyString(name)) updateFields.name = name.trim();
-    if (isNonEmptyString(phone)) updateFields.phone = phone.trim();
-    if (typeof numberOfSpaces === "number" && numberOfSpaces > 0) {
-      updateFields.numberOfSpaces = numberOfSpaces;
-    }
-
-    if (Object.keys(updateFields).length === 0) {
-      return res
-        .status(400)
-        .json({ error: "No valid fields provided to update" });
-    }
-
-    const result = await getOrdersCollection().findOneAndUpdate(
-      { _id: new ObjectId(orderId) },
-      { $set: updateFields },
-      { returnDocument: "after" }
-    );
-
-    if (!result.value) {
-      return res.status(404).json({ error: "Order not found" });
-    }
-
-    res.json({
-      message: "Order updated",
-      order: result.value,
-    });
-  } catch (err) {
-    next(err);
+    console.error("Error creating order:", err);
+    res.status(500).json({ error: "Failed to create order" });
   }
 });
 

@@ -26,7 +26,7 @@ export async function connectToDb() {
   });
 
   await client.connect();
- db = client.db("test");
+ db = client.db("After-School");
 
   console.log("✅ Connected to MongoDB Atlas (native driver)");
   return db;

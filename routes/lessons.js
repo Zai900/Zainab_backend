@@ -1,31 +1,40 @@
 // routes/lessons.js
-import { Router } from "express";
+import express from "express";
 import { getLessonsCollection, ObjectId } from "../db.js";
 
-const router = Router();
+const router = express.Router();
 
-// GET /lessons  — list all lessons
-router.get("/", async (_req, res, next) => {
+// ----------------------
+// GET /lessons  (all)
+// ----------------------
+router.get("/", async (req, res) => {
   try {
-    const lessons = await getLessonsCollection().find({}).toArray();
-    res.json(lessons);
+    const lessons = getLessonsCollection();
+    const data = await lessons.find().toArray();
+    res.json(data);
   } catch (err) {
-    next(err);
+    console.error("Error fetching lessons:", err);
+    res.status(500).json({ error: "Server error" });
   }
 });
 
-// GET /lessons/:id — single lesson by id
-router.get("/:id", async (req, res, next) => {
+// ----------------------
+// GET /lessons/:id
+// (works for ObjectId OR string _id)
+// ----------------------
+router.get("/:id", async (req, res) => {
   try {
-    const lessonId = req.params.id;
+    const lessons = getLessonsCollection();
+    const id = req.params.id;
 
-    if (!ObjectId.isValid(lessonId)) {
-      return res.status(400).json({ error: "Invalid lesson id" });
+    let filter;
+    if (ObjectId.isValid(id)) {
+      filter = { $or: [{ _id: new ObjectId(id) }, { _id: id }] };
+    } else {
+      filter = { _id: id };
     }
 
-    const lesson = await getLessonsCollection().findOne({
-      _id: new ObjectId(lessonId),
-    });
+    const lesson = await lessons.findOne(filter);
 
     if (!lesson) {
       return res.status(404).json({ error: "Lesson not found" });
@@ -33,52 +42,38 @@ router.get("/:id", async (req, res, next) => {
 
     res.json(lesson);
   } catch (err) {
-    next(err);
+    console.error("Error fetching lesson:", err);
+    res.status(500).json({ error: "Server error" });
   }
 });
 
-// PUT /lessons/:id — update spaces
-router.put("/:id", async (req, res, next) => {
+// ----------------------
+// PUT /lessons/:id
+// Update fields (e.g. spaces)
+// ----------------------
+router.put("/:id", async (req, res) => {
   try {
-    const lessonId = req.params.id;
+    const lessons = getLessonsCollection();
+    const id = req.params.id;
+    const update = req.body; // e.g. { spaces: 3 }
 
-    if (!ObjectId.isValid(lessonId)) {
-      return res.status(400).json({ error: "Invalid lesson id" });
-    }
-
-    // Accept { spaces: 3 } OR { change: -1 }
-    const { spaces, change } = req.body;
-
-    const filter = { _id: new ObjectId(lessonId) };
-    let update;
-
-    if (typeof change === "number") {
-      update = { $inc: { spaces: change } };
-    } else if (typeof spaces === "number") {
-      update = { $set: { spaces } };
+    let filter;
+    if (ObjectId.isValid(id)) {
+      filter = { $or: [{ _id: new ObjectId(id) }, { _id: id }] };
     } else {
-      return res
-        .status(400)
-        .json({ error: "Provide 'spaces' (number) or 'change' (number)" });
+      filter = { _id: id };
     }
 
-    const result = await getLessonsCollection().findOneAndUpdate(
-      filter,
-      update,
-      { returnDocument: "after" }
-    );
+    const result = await lessons.updateOne(filter, { $set: update });
 
-    if (!result || !result.value) {
+    if (result.matchedCount === 0) {
       return res.status(404).json({ error: "Lesson not found" });
     }
 
-    return res.json({
-      message: "Lesson updated successfully",
-      updatedLesson: result.value,
-    });
+    res.json({ message: "Lesson updated successfully" });
   } catch (err) {
-    console.error("PUT /lessons error:", err);
-    next(err);
+    console.error("Error updating lesson:", err);
+    res.status(500).json({ error: "Server error" });
   }
 });
 
