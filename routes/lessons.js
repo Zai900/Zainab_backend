@@ -1,33 +1,31 @@
-// routes/lessons.js — lessons routes using native MongoDB
+// routes/lessons.js
+import { Router } from "express";
+import { getLessonsCollection, ObjectId } from "../db.js";
 
-import express from "express";
-import { ObjectId } from "mongodb";
-import { getDb } from "../db.js";
+const router = Router();
 
-const router = express.Router();
-
-// GET /lessons -> list all lessons
+// GET /lessons  — list all lessons
 router.get("/", async (_req, res, next) => {
   try {
-    const lessons = await getDb().collection("lessons").find().toArray();
+    const lessons = await getLessonsCollection().find({}).toArray();
     res.json(lessons);
   } catch (err) {
     next(err);
   }
 });
 
-// GET /lessons/:id -> single lesson
+// GET /lessons/:id — single lesson by id
 router.get("/:id", async (req, res, next) => {
   try {
-    const id = req.params.id;
+    const lessonId = req.params.id;
 
-    if (!ObjectId.isValid(id)) {
-      return res.status(400).json({ error: "Invalid lesson ID" });
+    if (!ObjectId.isValid(lessonId)) {
+      return res.status(400).json({ error: "Invalid lesson id" });
     }
 
-    const lesson = await getDb()
-      .collection("lessons")
-      .findOne({ _id: new ObjectId(id) });
+    const lesson = await getLessonsCollection().findOne({
+      _id: new ObjectId(lessonId),
+    });
 
     if (!lesson) {
       return res.status(404).json({ error: "Lesson not found" });
@@ -39,31 +37,47 @@ router.get("/:id", async (req, res, next) => {
   }
 });
 
-// PUT /lessons/:id -> update lesson (e.g. spaces after order)
+// PUT /lessons/:id — update spaces
 router.put("/:id", async (req, res, next) => {
   try {
-    const id = req.params.id;
+    const lessonId = req.params.id;
 
-    if (!ObjectId.isValid(id)) {
-      return res.status(400).json({ error: "Invalid lesson ID" });
+    if (!ObjectId.isValid(lessonId)) {
+      return res.status(400).json({ error: "Invalid lesson id" });
     }
 
-    const updateDoc = { $set: req.body };
+    // Accept { spaces: 3 } OR { change: -1 }
+    const { spaces, change } = req.body;
 
-    const result = await getDb()
-      .collection("lessons")
-      .findOneAndUpdate(
-        { _id: new ObjectId(id) },
-        updateDoc,
-        { returnDocument: "after" }
-      );
+    const filter = { _id: new ObjectId(lessonId) };
+    let update;
 
-    if (!result.value) {
+    if (typeof change === "number") {
+      update = { $inc: { spaces: change } };
+    } else if (typeof spaces === "number") {
+      update = { $set: { spaces } };
+    } else {
+      return res
+        .status(400)
+        .json({ error: "Provide 'spaces' (number) or 'change' (number)" });
+    }
+
+    const result = await getLessonsCollection().findOneAndUpdate(
+      filter,
+      update,
+      { returnDocument: "after" }
+    );
+
+    if (!result || !result.value) {
       return res.status(404).json({ error: "Lesson not found" });
     }
 
-    res.json(result.value);
+    return res.json({
+      message: "Lesson updated successfully",
+      updatedLesson: result.value,
+    });
   } catch (err) {
+    console.error("PUT /lessons error:", err);
     next(err);
   }
 });
