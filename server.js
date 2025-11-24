@@ -13,12 +13,10 @@ import {
   ObjectId,
 } from "./db.js";
 
-import ordersRouter from "./routes/orders.js";
-
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// needed for __dirname with ES modules
+// Needed for __dirname with ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -26,79 +24,83 @@ const __dirname = path.dirname(__filename);
 app.use(cors());
 app.use(express.json());
 
-// logger middleware
+// Logger middleware
 app.use((req, res, next) => {
-  const now = new Date().toISOString();
   console.log(
-    `[${now}] ${req.method} ${req.url} | body: ${JSON.stringify(req.body)}`
+    `[${new Date().toISOString()}] ${req.method} ${req.url} | body: ${JSON.stringify(
+      req.body
+    )}`
   );
   next();
 });
 
-// use orders router for /orders
-app.use("/orders", ordersRouter);
-
-// static image middleware (serves files from /static)
-app.get("/lesson-images/:imageName", (req, res) => {
-  const imageName = req.params.imageName;
-  const imagePath = path.join(__dirname, "static", imageName);
-
-  fs.access(imagePath, fs.constants.F_O K, (err) => {
-    if (err) {
-      console.error("Image not found:", imagePath);
-      return res.status(404).json({ error: "Image not found" });
-    }
-    res.sendFile(imagePath);
-  });
-});
+// Serve static images from /static folder
+app.use("/static", express.static(path.join(__dirname, "static")));
 
 // ---------- ROUTES ----------
 
-// GET /lessons — return all lessons
+// GET /lessons - return all lessons
 app.get("/lessons", async (req, res) => {
   try {
-    const lessonsCol = getLessonsCollection();
-    const lessons = await lessonsCol.find({}).toArray();
+    const lessons = await getLessonsCollection().find({}).toArray();
     res.json(lessons);
   } catch (err) {
-    console.error("Error fetching lessons:", err);
-    res.status(500).json({ error: "Failed to fetch lessons" });
+    console.error("Error loading lessons:", err);
+    res.status(500).json({ error: "Failed to load lessons" });
   }
 });
 
-// PUT /lessons/:id — update any fields (used for spaces)
+// PUT /lessons/:id - update lesson spaces
 app.put("/lessons/:id", async (req, res) => {
   try {
     const lessonId = req.params.id;
+    let { spaces } = req.body;
 
-    if (!ObjectId.isValid(lessonId)) {
-      return res.status(400).json({ error: "Invalid lesson ID" });
+    spaces = Number(spaces);
+
+    if (!lessonId || isNaN(spaces)) {
+      return res.status(400).json({ error: "Invalid request body" });
     }
 
-    const updateFields = req.body;
-    if (!updateFields || Object.keys(updateFields).length === 0) {
-      return res.status(400).json({ error: "No update fields provided" });
-    }
-
-    const lessonsCol = getLessonsCollection();
-
-    const result = await lessonsCol.updateOne(
+    const result = await getLessonsCollection().findOneAndUpdate(
       { _id: new ObjectId(lessonId) },
-      { $set: updateFields }
+      { $set: { spaces: spaces } },
+      { returnDocument: "after" }
     );
 
-    if (result.matchedCount === 0) {
-      return res.status(404).json({ error: "Lesson not found" });
-    }
-
-    const updatedLesson = await lessonsCol.findOne({
-      _id: new ObjectId(lessonId),
-    });
-
-    res.json(updatedLesson);
+    res.json(result);
   } catch (err) {
     console.error("Error updating lesson:", err);
     res.status(500).json({ error: "Failed to update lesson" });
+  }
+});
+
+// POST /orders - create a new order
+app.post("/orders", async (req, res) => {
+  try {
+    const { name, phone, city, items } = req.body;
+
+    if (!name || !phone || !Array.isArray(items)) {
+      return res.status(400).json({ error: "Invalid order data" });
+    }
+
+    const orderDoc = {
+      name,
+      phone,
+      city: city || "",
+      items,
+      createdAt: new Date(),
+    };
+
+    const result = await getOrdersCollection().insertOne(orderDoc);
+
+    res.status(201).json({
+      message: "Order created",
+      orderId: result.insertedId,
+    });
+  } catch (err) {
+    console.error("Error saving order:", err);
+    res.status(500).json({ error: "Failed to save order" });
   }
 });
 
@@ -110,7 +112,7 @@ async function startServer() {
       console.log(`✅ Server listening on port ${PORT}`);
     });
   } catch (err) {
-    console.error("Failed to start server:", err);
+    console.error("❌ Failed to start server:", err);
     process.exit(1);
   }
 }
