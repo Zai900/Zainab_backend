@@ -1,61 +1,118 @@
-// server.js — CST3144 Backend
-// Express + Native MongoDB Driver + Middleware + REST API
+// server.js — Express + MongoDB native driver
 
-import dotenv from "dotenv";
 import express from "express";
 import cors from "cors";
-import morgan from "morgan";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 
-import lessonsRouter from "./routes/lessons.js";
+import {
+  connectToDb,
+  getLessonsCollection,
+  getOrdersCollection,
+  ObjectId,
+} from "./db.js";
+
 import ordersRouter from "./routes/orders.js";
-import { connectToDb } from "./db.js";
- 
-// Load .env
-dotenv.config();
 
 const app = express();
+const PORT = process.env.PORT || 5000;
 
-// ===== ES Module __dirname fix =====
+// needed for __dirname with ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ===== Middleware =====
+// ---------- MIDDLEWARE ----------
 app.use(cors());
 app.use(express.json());
-app.use(morgan("dev")); // coursework logger middleware
 
-// ===== Serve static images (coursework requirement) =====
-app.use("/images", express.static(path.join(__dirname, "static/images")));
+// logger middleware
+app.use((req, res, next) => {
+  const now = new Date().toISOString();
+  console.log(
+    `[${now}] ${req.method} ${req.url} | body: ${JSON.stringify(req.body)}`
+  );
+  next();
+});
 
-
-// ===== Routes =====
-app.use("/lessons", lessonsRouter);
+// use orders router for /orders
 app.use("/orders", ordersRouter);
 
-// ===== Default home route (good for Render) =====
-app.get("/", (req, res) => {
-  res.send("Backend running. Try /lessons or /orders");
-});
+// static image middleware (serves files from /static)
+app.get("/lesson-images/:imageName", (req, res) => {
+  const imageName = req.params.imageName;
+  const imagePath = path.join(__dirname, "static", imageName);
 
-// ===== Error handler =====
-app.use((err, _req, res, _next) => {
-  console.error("Server Error:", err);
-  res.status(500).json({ error: "Internal server error" });
-});
-
-// ===== Start server AFTER DB connection =====
-const PORT = process.env.PORT || 5000;
-
-connectToDb()
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(`\n✅ Connected to MongoDB Atlas`);
-      console.log(`✅ API running on http://localhost:${PORT}\n`);
-    });
-  })
-  .catch((err) => {
-    console.error("❌ Failed to start server:", err);
-    process.exit(1);
+  fs.access(imagePath, fs.constants.F_O K, (err) => {
+    if (err) {
+      console.error("Image not found:", imagePath);
+      return res.status(404).json({ error: "Image not found" });
+    }
+    res.sendFile(imagePath);
   });
+});
+
+// ---------- ROUTES ----------
+
+// GET /lessons — return all lessons
+app.get("/lessons", async (req, res) => {
+  try {
+    const lessonsCol = getLessonsCollection();
+    const lessons = await lessonsCol.find({}).toArray();
+    res.json(lessons);
+  } catch (err) {
+    console.error("Error fetching lessons:", err);
+    res.status(500).json({ error: "Failed to fetch lessons" });
+  }
+});
+
+// PUT /lessons/:id — update any fields (used for spaces)
+app.put("/lessons/:id", async (req, res) => {
+  try {
+    const lessonId = req.params.id;
+
+    if (!ObjectId.isValid(lessonId)) {
+      return res.status(400).json({ error: "Invalid lesson ID" });
+    }
+
+    const updateFields = req.body;
+    if (!updateFields || Object.keys(updateFields).length === 0) {
+      return res.status(400).json({ error: "No update fields provided" });
+    }
+
+    const lessonsCol = getLessonsCollection();
+
+    const result = await lessonsCol.updateOne(
+      { _id: new ObjectId(lessonId) },
+      { $set: updateFields }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ error: "Lesson not found" });
+    }
+
+    const updatedLesson = await lessonsCol.findOne({
+      _id: new ObjectId(lessonId),
+    });
+
+    res.json(updatedLesson);
+  } catch (err) {
+    console.error("Error updating lesson:", err);
+    res.status(500).json({ error: "Failed to update lesson" });
+  }
+});
+
+// ---------- START SERVER ----------
+async function startServer() {
+  try {
+    await connectToDb();
+    app.listen(PORT, () => {
+      console.log(`✅ Server listening on port ${PORT}`);
+    });
+  } catch (err) {
+    console.error("Failed to start server:", err);
+    process.exit(1);
+  }
+}
+
+startServer();
